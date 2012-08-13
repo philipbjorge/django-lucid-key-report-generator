@@ -51,16 +51,41 @@ class KeyReportAdmin(admin.ModelAdmin):
         oreport.pop("WA")
         oreport.pop("ID")
         nreport.pop("OR")
+        oreport[1].pop("Habrosyne scripta")
+        nreport[1].pop("Callizzia amorata")
 
+        def keys_added_removed(writer, header,ndict,odict):
+            key_rows_change = DictDiffer(ndict, odict)
+            added = ["%s Added" % header]
+            added.extend(list(key_rows_change.added()))
+            writer.writerow(added)
+            removed = ["%s Removed" % header]
+            removed.extend(list(key_rows_change.removed()))
+            writer.writerow(removed)
+
+        # Large global changes
         # List changed rows
-        key_rows_change = DictDiffer(nreport, oreport)
-        added = ["Rows Added"]
-        added.extend(list(key_rows_change.added()))
-        writer.writerow(added)
-        removed = ["Rows Removed"]
-        removed.extend(list(key_rows_change.removed()))
-        writer.writerow(removed)
-        # TODO: List dict changes per species
+        keys_added_removed(writer, "Rows", nreport, oreport)
+        # List changed species
+        keys_added_removed(writer, "Species", nreport[1], oreport[1])
+
+        # Finegrained changes
+        # List modifications for each species
+        months_en = ["", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "Novemeber", "December"]
+        for row_header, vals in sorted(nreport.iteritems()):
+            if row_header in oreport:
+                diff = DictDiffer(vals, oreport[row_header])
+
+                r = list()
+                # convert to english month
+                if isinstance(row_header, int):
+                    row_header = months_en[row_header]
+                r.append(row_header)
+
+                bool_to_s = lambda x: "added" if x else "removed"
+                r.extend(["%s %s" % (x, bool_to_s(vals[x])) for x in diff.changed()])
+                writer.writerow(r)
+
         return response
 
     compare_keys.short_description = "Generate a difference report"
@@ -86,8 +111,12 @@ class KeyReportAdmin(admin.ModelAdmin):
         header.insert(0, "")
         writer.writerow(header)
 
+        months_en = ["", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "Novemeber", "December"]
         for row_header, vals in sorted(report.iteritems()):
             r = list()
+            # convert to english month
+            if isinstance(row_header, int):
+                row_header = months_en[row_header]
             r.append(row_header)
             bool_to_s = lambda x: "X" if x else ""
             r.extend([bool_to_s(vals[x]) for x in species_list])
