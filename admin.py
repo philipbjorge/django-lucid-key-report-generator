@@ -13,6 +13,12 @@ class KeyReportAdmin(admin.ModelAdmin):
     actions = ['generate_key', 'compare_keys']
     list_display = ('created_at',)
 
+    def get_actions(self, request):
+        """ Remove Delete Selected to prevent accidental deletions."""
+        actions = super(KeyReportAdmin, self).get_actions(request)
+        del actions['delete_selected']
+        return actions
+
     def compare_keys(self, request, queryset):
         if queryset.count() != 2:
             messages.error(request, "You can only generate a report for two items.")
@@ -47,13 +53,6 @@ class KeyReportAdmin(admin.ModelAdmin):
         response['Content-Disposition'] = 'attachment; filename=LucidKeyDiff-%s-%s.csv' % (str(newest).replace('.', '_'), str(oldest).replace('.', '_'))
         writer = csv.writer(response)
 
-        # DEBUG
-        oreport.pop("WA")
-        oreport.pop("ID")
-        nreport.pop("OR")
-        oreport[1].pop("Habrosyne scripta")
-        nreport[1].pop("Callizzia amorata")
-
         def keys_added_removed(writer, header,ndict,odict):
             key_rows_change = DictDiffer(ndict, odict)
             added = ["%s Added" % header]
@@ -73,17 +72,29 @@ class KeyReportAdmin(admin.ModelAdmin):
         # List modifications for each species
         months_en = ["", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "Novemeber", "December"]
         for row_header, vals in sorted(nreport.iteritems()):
+            r = list()
+
+            # convert to english month
+            row_head = row_header
+            if isinstance(row_head, int):
+                row_head= months_en[row_head]
+            r.append(row_head)
+
+            bool_to_s = lambda x: "added" if x else "removed"
+
             if row_header in oreport:
+                # present in new and old
                 diff = DictDiffer(vals, oreport[row_header])
-
-                r = list()
-                # convert to english month
-                if isinstance(row_header, int):
-                    row_header = months_en[row_header]
-                r.append(row_header)
-
-                bool_to_s = lambda x: "added" if x else "removed"
                 r.extend(["%s %s" % (x, bool_to_s(vals[x])) for x in diff.changed()])
+                writer.writerow(r)
+            else:
+                # the species is present in new, absent in old
+                # newly added state/month etc.
+                # so we could only interested in things that have been added as all vals
+                # in old are effectively false.
+                # if a species is in the old, but not in the new it would be marked
+                # for wholesale delete above as species removed
+                r.extend(["%s %s" % (x, bool_to_s(vals[x])) for x in vals if vals[x]])
                 writer.writerow(r)
 
         return response
