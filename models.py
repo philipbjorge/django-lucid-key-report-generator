@@ -5,7 +5,7 @@ from pnwmoths.species.models import Species, SpeciesRecord, State
 from cms.models import Page
 
 from south.modelsinspector import add_introspection_rules
-add_introspection_rules([], ["^pnwmoths\.lucid_key_report_generator\.models\.LongTextField"])
+add_introspection_rules([], ["^django-lucid-key-report-generator\.models\.LongTextField"])
 class LongTextField(models.TextField):
     def db_type(self):
         return 'longtext'

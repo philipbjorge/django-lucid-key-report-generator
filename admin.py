@@ -1,4 +1,4 @@
-from lucid_key_report_generator.models import KeyReport
+from models import KeyReport
 from pnwmoths.species.models import Species
 from cms.models import Page
 from django.contrib import admin, messages
