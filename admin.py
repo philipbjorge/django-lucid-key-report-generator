@@ -123,7 +123,11 @@ class KeyReportAdmin(admin.ModelAdmin):
         writer.writerow(header)
 
         months_en = ["", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "Novemeber", "December"]
-        for row_header, vals in sorted(report.iteritems()):
+	# sort the output by states then ecoregions (using (len, str) sorting combo)
+	# sorting by length with a max of 3 is a trick to sort the list by month, state, ecoregions
+	order_out = list(report.iteritems())
+	order_out.sort(key=lambda i: (min(3, len(str(i[0]))), i[0]))
+        for row_header, vals in order_out:
             r = list()
             # convert to english month
             if isinstance(row_header, int):

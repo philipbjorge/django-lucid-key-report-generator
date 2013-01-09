@@ -22,6 +22,19 @@ class KeyReport(models.Model):
         if self.pk and len(KeyReport.objects.filter(pk=self.pk)) > 0:
             return #disallows editing
 
+
+	# Initialize geography vars
+	import gdal
+	from osgeo import ogr, osr
+
+	# load the shape file as a layer
+	ds_in = ogr.Open("/usr/local/www/pnwmoths/django/pnwmoths/django-lucid-key-report-generator/48US_BC_Ecoregions.shp")
+	lyr_in = ds_in.GetLayerByIndex(0)
+	lyr_in.ResetReading()
+
+	# field index for which i want the data extracted
+	idx_reg = lyr_in.GetLayerDefn().GetFieldIndex("US_L3NAME")
+
         # create report
 
         # initialize dict with key=species and val=False
@@ -37,7 +50,7 @@ class KeyReport(models.Model):
                 return None
             return f(val)
 
-        s_vals = [("%s %s" % (g,s), cast_None(str, st), cast_None(int, m)) for g,s,st,m in SpeciesRecord.objects.all().values_list('species__genus', 'species__species', 'state__code', 'month')]
+        s_vals = [("%s %s" % (g,s), cast_None(str, st), cast_None(int, m)) for g,s,st,m in SpeciesRecord.records.all().values_list('species__genus', 'species__species', 'state__code', 'month')]
 
         # initialize table dict where keys are rows and cols are species_dict
         result = dict()
@@ -45,7 +58,40 @@ class KeyReport(models.Model):
             result[str(s.code)] = dict(species_dict)
         for s in range(1,13):
             result[s] = dict(species_dict)
-        #TODO: ecoregions
+	for s in lyr_in:  # ecoregions
+            result[str(s.GetFieldAsString(idx_reg))] = dict(species_dict)
+
+	# ECOREGIONS
+	#
+	def check(lat, lon, lyr_in, idx_reg):
+	    # create point geometry
+	    pt = ogr.Geometry(ogr.wkbPoint)
+	    pt.SetPoint_2D(0, lon, lat)
+	    spatialRef = osr.SpatialReference()
+	    spatialRef.ImportFromEPSG(4326)
+	    coordTransform = osr.CoordinateTransformation(spatialRef, lyr_in.GetSpatialRef())
+	    pt.Transform(coordTransform)
+
+	    lyr_in.SetSpatialFilter(pt)
+
+	    # go over all the polygons in the layer see if one include the point
+	    for feat_in in lyr_in:
+		ply = feat_in.GetGeometryRef()
+		# test
+		if ply.Contains(pt):
+		    # ecoregion name
+		    return feat_in.GetFieldAsString(idx_reg)
+	    return None
+
+	# Gets a unique set of (lat,lon,species) tuples limited to WA, OR, MT, ID, and BC
+	lat_lon_species = set( ((rec.latitude, rec.longitude, rec.species.name) for rec in SpeciesRecord.records.select_related('species').filter(latitude__isnull=False, longitude__isnull=False, state__code__in=["WA", "OR", "MT", "ID", "BC"]))) 
+	for (lat, lon, species) in lat_lon_species:
+	    if (lat > -90 and lat < 90) and (lon > -180 and lon < 180):
+	        ecoregion = check(lat, lon, lyr_in, idx_reg)
+	        if ecoregion and species:
+		    print ecoregion
+		    result[str(ecoregion)][species] = True
+	# END ECOREGIONS
 
         for tup in s_vals:
             species, state, month = tup
