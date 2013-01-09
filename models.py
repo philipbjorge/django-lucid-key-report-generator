@@ -63,6 +63,7 @@ class KeyReport(models.Model):
 
 	# ECOREGIONS
 	#
+	cached = dict()
 	def check(lat, lon, lyr_in, idx_reg):
 	    # create point geometry
 	    pt = ogr.Geometry(ogr.wkbPoint)
@@ -87,7 +88,13 @@ class KeyReport(models.Model):
 	lat_lon_species = set( ((rec.latitude, rec.longitude, rec.species.name) for rec in SpeciesRecord.records.select_related('species').filter(latitude__isnull=False, longitude__isnull=False, state__code__in=["WA", "OR", "MT", "ID", "BC"]))) 
 	for (lat, lon, species) in lat_lon_species:
 	    if (lat > -90 and lat < 90) and (lon > -180 and lon < 180):
-	        ecoregion = check(lat, lon, lyr_in, idx_reg)
+		# Use a dictionary cache to speed up slow Contains lookup
+		if (lat, lon) in cached:
+		    ecoregion = cached[(lat, lon)]
+		else:
+	            ecoregion = check(lat, lon, lyr_in, idx_reg)
+		    cached[(lat, lon)] = ecoregion
+
 	        if ecoregion and species:
 		    print ecoregion
 		    result[str(ecoregion)][species] = True
