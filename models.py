@@ -1,8 +1,20 @@
 from django.db import models
 import json, pickle, zlib
 from base64 import binascii
-from pnwmoths.species.models import Species, SpeciesRecord, State
 from cms.models import Page
+
+def module_exists(module_name):
+    try:
+        __import__(module_name)
+    except ImportError:
+        return False
+    else:
+        return True
+if module_exists('pnwmoths'):
+    from pnwmoths.species.models import Species, SpeciesRecord, State
+
+if module_exists('pnwbutterflies'):
+    from pnwbutterflies.species.models import Species, SpeciesRecord, State
 
 from south.modelsinspector import add_introspection_rules
 add_introspection_rules([], ["^django-lucid-key-report-generator\.models\.LongTextField"])

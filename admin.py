@@ -6,6 +6,19 @@ from django.http import HttpResponse
 import csv, pickle
 from base64 import binascii
 
+def module_exists(module_name):
+    try:
+        __import__(module_name)
+    except ImportError:
+        return False
+    else:
+        return True
+if module_exists('pnwmoths'):
+    from pnwmoths.species.models import Species
+
+if module_exists('pnwbutterflies'):
+    from pnwbutterflies.species.models import Species
+
 class KeyReportAdmin(admin.ModelAdmin):
     class Meta:
         exclude = ('data',)
