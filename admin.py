@@ -1,5 +1,4 @@
 from models import KeyReport
-from pnwmoths.species.models import Species
 from cms.models import Page
 from django.contrib import admin, messages
 from django.http import HttpResponse
@@ -13,11 +12,15 @@ def module_exists(module_name):
         return False
     else:
         return True
+
 if module_exists('pnwmoths'):
-    from pnwmoths.species.models import Species
+    from pnwmoths.app.species.models import Species
 
 if module_exists('pnwbutterflies'):
-    from pnwbutterflies.species.models import Species
+    from pnwbutterflies.app.species.models import Species
+
+if module_exists('pnwsawflies'):
+    from pnwbutterflies.app.species.models import Species
 
 class KeyReportAdmin(admin.ModelAdmin):
     class Meta:
@@ -97,7 +100,7 @@ class KeyReportAdmin(admin.ModelAdmin):
             row_head = row_header
             if isinstance(row_head, int):
                 row_head= months_en[row_head]
-            r.append(row_head)
+            r.append(row_head.title())
 
             bool_to_s = lambda x: "added" if x else "removed"
 

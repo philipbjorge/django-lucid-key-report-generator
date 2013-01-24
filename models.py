@@ -10,11 +10,15 @@ def module_exists(module_name):
         return False
     else:
         return True
+
 if module_exists('pnwmoths'):
-    from pnwmoths.species.models import Species, SpeciesRecord, State
+    from pnwmoths.app.species.models import Species, SpeciesRecord, State
+
+if module_exists('pnwsawflies'):
+    from pnwsawflies.app.species.models import Species, SpeciesRecord, State
 
 if module_exists('pnwbutterflies'):
-    from pnwbutterflies.species.models import Species, SpeciesRecord, State
+    from pnwbutterflies.app.species.models import Species, SpeciesRecord, State
 
 from south.modelsinspector import add_introspection_rules
 add_introspection_rules([], ["^django-lucid-key-report-generator\.models\.LongTextField"])
@@ -40,12 +44,13 @@ class KeyReport(models.Model):
 	from osgeo import ogr, osr
 
 	# load the shape file as a layer
-	ds_in = ogr.Open("/usr/local/www/pnwmoths/django/pnwmoths/django-lucid-key-report-generator/48US_BC_Ecoregions.shp")
+	ds_in = ogr.Open("/usr/local/lib/python2.6/site-packages/django-lucid-key-report-generator/48US_BC_Ecoregions_simple.shp")
 	lyr_in = ds_in.GetLayerByIndex(0)
 	lyr_in.ResetReading()
 
 	# field index for which i want the data extracted
-	idx_reg = lyr_in.GetLayerDefn().GetFieldIndex("US_L3NAME")
+	idx_reg = lyr_in.GetLayerDefn().GetFieldIndex("ECOREGION")
+	idx_state = lyr_in.GetLayerDefn().GetFieldIndex("STATE")
 
         # create report
 
@@ -71,7 +76,9 @@ class KeyReport(models.Model):
         for s in range(1,13):
             result[s] = dict(species_dict)
 	for s in lyr_in:  # ecoregions
-            result[str(s.GetFieldAsString(idx_reg))] = dict(species_dict)
+	    # ecoregion key by "ecoregion (state)"
+	    if s.GetFieldAsString(idx_state).lower() in ["washington", "oregon", "montana", "idaho", "british columbia"]:
+                result[str(s.GetFieldAsString(idx_reg) + " (" + s.GetFieldAsString(idx_state) + ")")] = dict(species_dict)
 
 	# ECOREGIONS
 	#
@@ -91,10 +98,10 @@ class KeyReport(models.Model):
 	    for feat_in in lyr_in:
 		ply = feat_in.GetGeometryRef()
 		# test
-		if ply.Contains(pt):
+		if ply and ply.Contains(pt):
 		    # ecoregion name
-		    return feat_in.GetFieldAsString(idx_reg)
-	    return None
+		    return (feat_in.GetFieldAsString(idx_reg), feat_in.GetFieldAsString(idx_state))
+	    return (None, None)
 
 	# Gets a unique set of (lat,lon,species) tuples limited to WA, OR, MT, ID, and BC
 	lat_lon_species = set( ((rec.latitude, rec.longitude, rec.species.name) for rec in SpeciesRecord.records.select_related('species').filter(latitude__isnull=False, longitude__isnull=False, state__code__in=["WA", "OR", "MT", "ID", "BC"]))) 
@@ -102,14 +109,16 @@ class KeyReport(models.Model):
 	    if (lat > -90 and lat < 90) and (lon > -180 and lon < 180):
 		# Use a dictionary cache to speed up slow Contains lookup
 		if (lat, lon) in cached:
-		    ecoregion = cached[(lat, lon)]
+		    ecoregion, state = cached[(lat, lon)]
 		else:
-	            ecoregion = check(lat, lon, lyr_in, idx_reg)
-		    cached[(lat, lon)] = ecoregion
+	            ecoregion, state = check(lat, lon, lyr_in, idx_reg)
+		    cached[(lat, lon)] = (ecoregion, state)
 
-	        if ecoregion and species:
+	        if ecoregion and state and species and str(ecoregion + " (" + state + ")") in result:
+		    # ATTENTION: This is silly, but don't delete this print. For whatever reason it tricks apache into letting this request
+		    # run longer then 30 seconds!
 		    print ecoregion
-		    result[str(ecoregion)][species] = True
+		    result[str(ecoregion + " (" + state + ")")][species] = True
 	# END ECOREGIONS
 
         for tup in s_vals:
